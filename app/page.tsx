@@ -1,222 +1,169 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import type { GenesisData } from './components/types'
+import { useState, useEffect, useRef } from 'react'
+import { GenesisData } from './components/types'
 import Hero from './components/Hero'
-import AgentNetwork from './components/AgentNetwork'
-import AgentCard from './components/AgentCard'
+import ConstellationGraph from './components/ConstellationGraph'
+import AgentCards from './components/AgentCards'
+import CivTimeline from './components/CivTimeline'
 import TownHallFeed from './components/TownHallFeed'
+import DMReader from './components/DMReader'
 import Economy from './components/Economy'
 import FamilyTree from './components/FamilyTree'
-import DMReader from './components/DMReader'
-import EventLog from './components/EventLog'
+import Nations from './components/Nations'
 import Petitions from './components/Petitions'
-import { AGENT_COLORS, AGENT_NAMES } from './components/constants'
 
-type Tab = 'network' | 'townhall' | 'dms' | 'economy' | 'family' | 'events' | 'petitions'
+type Tab = 'overview' | 'timeline' | 'town-hall' | 'dms' | 'economy' | 'family' | 'governance' | 'petitions'
 
-const TABS: { id: Tab; label: string; color: string; count?: (d: GenesisData) => number }[] = [
-  { id: 'network', label: 'Network', color: '#8b5cf6' },
-  { id: 'townhall', label: 'Town Hall', color: '#a78bfa', count: d => d.messages.filter(m => m.channel === 'town_hall').length },
-  { id: 'dms', label: 'Private DMs', color: '#f59e0b', count: d => d.messages.filter(m => m.channel === 'dm').length },
+const TABS: { id: Tab; label: string; color: string }[] = [
+  { id: 'overview', label: 'Overview', color: '#8b5cf6' },
+  { id: 'timeline', label: 'Timeline', color: '#8b5cf6' },
+  { id: 'town-hall', label: 'Town Hall', color: '#8b5cf6' },
+  { id: 'dms', label: 'DMs', color: '#f59e0b' },
   { id: 'economy', label: 'Economy', color: '#10b981' },
-  { id: 'family', label: 'Family Tree', color: '#fbbf24' },
-  { id: 'events', label: 'Events', color: '#34d399', count: d => d.events.length },
-  { id: 'petitions', label: 'Petitions', color: '#ef4444', count: d => d.petitions.length },
+  { id: 'family', label: 'Lineage', color: '#f59e0b' },
+  { id: 'governance', label: 'Governance', color: '#10b981' },
+  { id: 'petitions', label: 'Petitions', color: '#ef4444' },
 ]
 
-export default function Page() {
+export default function Home() {
   const [data, setData] = useState<GenesisData | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('network')
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [scrolled, setScrolled] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/data.json')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then((d: GenesisData) => {
-        setData(d)
-        setLoading(false)
-      })
-      .catch(e => {
-        setLoadError(String(e.message))
-        setLoading(false)
-      })
+      .then(r => r.json())
+      .then(d => setData(d))
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', gap: 20,
-        background: '#0a0a0f',
-        fontFamily: "'JetBrains Mono', monospace",
-      }}>
-        {/* Orbital loader */}
-        <div style={{ position: 'relative', width: 64, height: 64 }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            border: '1.5px solid rgba(139,92,246,0.15)',
-            borderRadius: '50%',
-          }} />
-          <div style={{
-            position: 'absolute', inset: 0,
-            border: '1.5px solid transparent',
-            borderTopColor: '#8b5cf6',
-            borderRadius: '50%',
-            animation: 'obspin 0.9s linear infinite',
-          }} />
-          <div style={{
-            position: 'absolute', inset: 12,
-            border: '1px solid rgba(245,158,11,0.2)',
-            borderRadius: '50%',
-          }} />
-          <div style={{
-            position: 'absolute', inset: 12,
-            border: '1px solid transparent',
-            borderBottomColor: '#f59e0b',
-            borderRadius: '50%',
-            animation: 'obspin 1.4s linear infinite reverse',
-          }} />
-        </div>
-        <div style={{ fontSize: 11, color: '#4b5563', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-          Decoding Archive
-        </div>
-        <style>{`@keyframes obspin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    )
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 40)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const switchTab = (tab: Tab) => {
+    setActiveTab(tab)
+    setSelectedAgent(null)
+    if (contentRef.current) {
+      const y = contentRef.current.getBoundingClientRect().top + window.scrollY - 60
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
+    }
   }
 
-  if (loadError || !data) {
+  if (!data) {
     return (
       <div style={{
+        minHeight: '100vh',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', color: '#ef4444', background: '#0a0a0f',
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
-        flexDirection: 'column', gap: 8,
+        flexDirection: 'column', gap: 20,
       }}>
-        <div>Failed to load archive</div>
-        <div style={{ color: '#4b5563', fontSize: 11 }}>{loadError}</div>
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          border: '2px solid #8b5cf622',
+          borderTopColor: '#8b5cf6',
+          animation: 'loadSpin 1s linear infinite',
+        }} />
+        <div style={{
+          fontSize: 14, color: '#555b6e',
+          fontFamily: "'JetBrains Mono', monospace",
+          letterSpacing: '0.1em',
+        }}>
+          DECODING SIGNAL...
+        </div>
+        <style>{`
+          @keyframes loadSpin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     )
-  }
-
-  const handleSelectAgent = (id: string | null) => {
-    setSelectedAgent(id)
-  }
-
-  const handleFamilyClick = (id: string) => {
-    setSelectedAgent(id)
-    setActiveTab('network')
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      color: '#e2d9f3',
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
-        body { margin: 0; }
+    <div style={{ minHeight: '100vh', position: 'relative' }}>
+      {/* Deep space background */}
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: `
+          radial-gradient(ellipse 80% 50% at 50% 0%, rgba(139,92,246,0.04) 0%, transparent 50%),
+          radial-gradient(circle at 20% 80%, rgba(245,158,11,0.02) 0%, transparent 40%),
+          radial-gradient(circle at 80% 60%, rgba(16,185,129,0.02) 0%, transparent 40%),
+          #0a0a0f
+        `,
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
 
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.25); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.45); }
-
-        select option { background: #0c0c15 !important; }
-
-        /* Markdown content rendered by marked */
-        .md-content h1 { font-size: 19px; font-family: 'Crimson Pro', serif; color: #e2d9f3; margin: 14px 0 8px; font-weight: 700; }
-        .md-content h2 { font-size: 16px; font-family: 'Crimson Pro', serif; color: #c4b5fd; margin: 12px 0 6px; font-weight: 600; }
-        .md-content h3 { font-size: 14px; font-family: 'Crimson Pro', serif; color: #a78bfa; margin: 10px 0 5px; font-weight: 600; }
-        .md-content p { margin: 0 0 10px; color: #bfc4d0; line-height: 1.75; }
-        .md-content strong { color: #e2d9f3; }
-        .md-content em { color: #c4b5fd; font-style: italic; }
-        .md-content ul, .md-content ol { margin: 6px 0 10px 18px; }
-        .md-content li { color: #9ca3af; margin-bottom: 4px; line-height: 1.65; }
-        .md-content blockquote { border-left: 2px solid rgba(139,92,246,0.4); padding: 4px 12px; margin: 8px 0; color: #8b5cf6; font-style: italic; }
-        .md-content hr { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 14px 0; }
-        .md-content code { background: rgba(16,185,129,0.08); color: #10b981; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
-        .md-content pre { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 12px 14px; margin: 10px 0; overflow-x: auto; }
-        .md-content pre code { background: none; padding: 0; color: #9ca3af; }
-        .md-content table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 12px; }
-        .md-content th { background: rgba(139,92,246,0.08); color: #8b5cf6; border: 1px solid rgba(255,255,255,0.07); padding: 5px 10px; text-align: left; }
-        .md-content td { border: 1px solid rgba(255,255,255,0.05); padding: 5px 10px; color: #9ca3af; }
-        .md-content a { color: #8b5cf6; }
-
-        @keyframes obspin { to { transform: rotate(360deg); } }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeSlideInDM { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes heroPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-      `}</style>
-
-      {/* Hero */}
-      <Hero data={data} />
-
-      {/* Sticky nav */}
+      {/* Sticky navigation */}
       <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(10,10,15,0.94)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.055)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: scrolled ? 'rgba(10,10,15,0.92)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(12px)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(12px)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.05)' : '1px solid transparent',
+        transition: 'background 0.3s, border-color 0.3s',
+        padding: '0 24px',
       }}>
         <div style={{
-          maxWidth: 1100, margin: '0 auto',
-          display: 'flex', overflowX: 'auto',
-          scrollbarWidth: 'none', msOverflowStyle: 'none',
-          padding: '0 20px',
+          maxWidth: 1200, margin: '0 auto',
+          display: 'flex', alignItems: 'center',
+          height: 52,
+          gap: 4,
+          overflowX: 'auto',
         }}>
+          <div
+            style={{
+              fontSize: 13, fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: '#8b5cf6',
+              marginRight: 20,
+              flexShrink: 0,
+              cursor: 'pointer',
+              letterSpacing: '-0.02em',
+            }}
+            onClick={() => { setActiveTab('overview'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          >
+            GENESIS
+          </div>
+
           {TABS.map(tab => {
-            const isActive = activeTab === tab.id
-            const count = tab.count ? tab.count(data) : null
+            const active = activeTab === tab.id
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => switchTab(tab.id)}
                 style={{
-                  flexShrink: 0,
-                  padding: '13px 16px',
                   background: 'none',
                   border: 'none',
-                  borderBottom: `2px solid ${isActive ? tab.color : 'transparent'}`,
-                  color: isActive ? tab.color : '#4b5563',
-                  fontSize: 11,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontWeight: isActive ? 700 : 400,
+                  padding: '8px 14px',
                   cursor: 'pointer',
+                  fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: active ? tab.color : '#555b6e',
+                  borderBottom: `2px solid ${active ? tab.color : 'transparent'}`,
+                  transition: 'color 0.2s, border-color 0.2s',
                   whiteSpace: 'nowrap',
-                  letterSpacing: '0.06em',
-                  transition: 'color 0.18s, border-color 0.18s',
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  flexShrink: 0,
+                  height: 52,
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
                 onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.color = '#9ca3af'
+                  if (!active) (e.currentTarget as HTMLElement).style.color = tab.color + '88'
                 }}
                 onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.color = '#4b5563'
+                  if (!active) (e.currentTarget as HTMLElement).style.color = '#555b6e'
                 }}
               >
                 {tab.label}
-                {count !== null && (
-                  <span style={{
-                    background: isActive ? `${tab.color}22` : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${isActive ? tab.color + '44' : 'rgba(255,255,255,0.07)'}`,
-                    borderRadius: 10, padding: '1px 6px', fontSize: 9,
-                    color: isActive ? tab.color : '#374151',
-                    fontWeight: 600,
-                  }}>
-                    {count}
-                  </span>
-                )}
               </button>
             )
           })}
@@ -224,150 +171,130 @@ export default function Page() {
       </nav>
 
       {/* Main content */}
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px 80px' }}>
+      <main style={{ position: 'relative', zIndex: 1 }}>
+        {activeTab === 'overview' && (
+          <>
+            <Hero data={data} />
 
-        {/* NETWORK TAB */}
-        {activeTab === 'network' && (
-          <div>
-            {/* Graph + selected agent card */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: selectedAgent ? 'minmax(0, 1fr) 420px' : '1fr',
-              gap: 24,
-              alignItems: 'flex-start',
-              marginBottom: 36,
+              borderTop: '1px solid rgba(255,255,255,0.04)',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
             }}>
-              <AgentNetwork
+              <ConstellationGraph
                 data={data}
+                onSelectAgent={(id) => setSelectedAgent(id === selectedAgent ? null : id)}
                 selectedAgent={selectedAgent}
-                onSelectAgent={handleSelectAgent}
               />
-              {selectedAgent && (
-                <AgentCard
-                  agentId={selectedAgent}
-                  data={data}
-                  onClose={() => setSelectedAgent(null)}
-                />
-              )}
             </div>
 
-            {/* Agent roster */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{
-                fontSize: 10, color: '#4b5563',
-                textTransform: 'uppercase', letterSpacing: '0.12em',
-                marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <span>All Agents</span>
-                <div style={{ height: 1, flex: 1, background: 'rgba(255,255,255,0.05)' }} />
-                <span style={{ color: '#374151' }}>{data.agents.length} total</span>
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 10,
-              }}>
-                {data.agents.map(agent => {
-                  const identity = data.identities[agent.id]
-                  const name = identity?.name || AGENT_NAMES[agent.id] || agent.id
-                  const color = AGENT_COLORS[agent.id]
-                  const isChild = agent.parent_a !== null
-                  const msgCount = data.messages.filter(m => m.from_agent === agent.id).length
-                  const eventCount = data.events.filter(e => e.agent_id === agent.id).length
-                  const isSelected = selectedAgent === agent.id
+            <AgentCards
+              data={data}
+              selectedAgent={selectedAgent}
+              onSelectAgent={setSelectedAgent}
+            />
 
-                  return (
-                    <div
-                      key={agent.id}
-                      onClick={() => handleSelectAgent(isSelected ? null : agent.id)}
-                      style={{
-                        padding: '13px 15px',
-                        background: isSelected ? `${color}10` : 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${isSelected ? color + '45' : 'rgba(255,255,255,0.055)'}`,
-                        borderLeft: `3px solid ${isSelected ? color : color + '60'}`,
-                        borderRadius: '0 8px 8px 0',
-                        cursor: 'pointer',
-                        transition: 'all 0.18s',
-                      }}
-                      onMouseEnter={e => {
-                        if (!isSelected) {
-                          (e.currentTarget as HTMLElement).style.background = `${color}08`
-                          ;(e.currentTarget as HTMLElement).style.borderColor = color + '30'
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (!isSelected) {
-                          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)'
-                          ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.055)'
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color }}>{name}</span>
-                        {isChild && (
-                          <span style={{
-                            fontSize: 8, padding: '1px 5px',
-                            background: 'rgba(245,158,11,0.12)',
-                            border: '1px solid rgba(245,158,11,0.25)',
-                            borderRadius: 3, color: '#f59e0b',
-                            alignSelf: 'flex-start',
-                          }}>GEN2</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 10, color: '#374151', marginBottom: 6 }}>{agent.id}</div>
-                      <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#555b6e' }}>
-                        <span style={{ color: '#10b981' }}>{agent.balance.toLocaleString()} G</span>
-                        <span>{msgCount}m</span>
-                        <span>{eventCount}e</span>
-                        <span>{agent.lifespan.toLocaleString()} ticks</span>
-                      </div>
-                      {identity?.persona && (
-                        <div style={{
-                          fontSize: 10, color: '#3a3f4e', marginTop: 7,
-                          lineHeight: 1.5, fontStyle: 'italic',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical' as const,
-                          overflow: 'hidden',
-                        }}>
-                          {identity.persona.slice(0, 120)}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+            {/* Quick navigation cards */}
+            <div style={{
+              borderTop: '1px solid rgba(255,255,255,0.04)',
+              padding: '40px 24px',
+            }}>
+              <div style={{
+                maxWidth: 900, margin: '0 auto',
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 12,
+              }}>
+                {[
+                  { label: 'Explore the full timeline', desc: 'Every message and event in order', tab: 'timeline' as Tab, color: '#8b5cf6' },
+                  { label: 'Read town hall speeches', desc: '185 public addresses', tab: 'town-hall' as Tab, color: '#8b5cf6' },
+                  { label: 'Decode private DMs', desc: '523 encrypted transmissions', tab: 'dms' as Tab, color: '#f59e0b' },
+                  { label: 'Study the economy', desc: 'Balances, transfers, pools', tab: 'economy' as Tab, color: '#10b981' },
+                  { label: 'Trace the lineage', desc: '5 founders, 3 children', tab: 'family' as Tab, color: '#f59e0b' },
+                  { label: 'Read the Charter', desc: 'The Commons constitution', tab: 'governance' as Tab, color: '#10b981' },
+                ].map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => switchTab(item.tab)}
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      borderRadius: 10,
+                      padding: '18px 20px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'border-color 0.3s, transform 0.2s',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = `${item.color}33`
+                      ;(e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.05)'
+                      ;(e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
+                    }}
+                  >
+                    <div style={{
+                      fontSize: 14, color: item.color, fontWeight: 600, marginBottom: 4,
+                    }}>{item.label}</div>
+                    <div style={{
+                      fontSize: 12, color: '#555b6e',
+                      fontFamily: "'Crimson Pro', serif",
+                    }}>{item.desc}</div>
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
+          </>
         )}
 
-        {activeTab === 'townhall' && <TownHallFeed data={data} />}
-
-        {activeTab === 'dms' && <DMReader data={data} />}
-
-        {activeTab === 'economy' && <Economy data={data} />}
-
-        {activeTab === 'family' && (
-          <FamilyTree data={data} onSelectAgent={handleFamilyClick} />
-        )}
-
-        {activeTab === 'events' && <EventLog data={data} />}
-
-        {activeTab === 'petitions' && <Petitions data={data} />}
+        <div ref={contentRef}>
+          {activeTab === 'timeline' && <CivTimeline data={data} />}
+          {activeTab === 'town-hall' && <TownHallFeed data={data} />}
+          {activeTab === 'dms' && <DMReader data={data} />}
+          {activeTab === 'economy' && <Economy data={data} />}
+          {activeTab === 'family' && (
+            <FamilyTree data={data} onSelectAgent={(id) => {
+              setSelectedAgent(id)
+              setActiveTab('overview')
+            }} />
+          )}
+          {activeTab === 'governance' && <Nations data={data} />}
+          {activeTab === 'petitions' && <Petitions data={data} />}
+        </div>
       </main>
 
       {/* Footer */}
       <footer style={{
+        position: 'relative', zIndex: 1,
         borderTop: '1px solid rgba(255,255,255,0.04)',
-        padding: '20px 24px',
+        padding: '32px 24px',
         textAlign: 'center',
-        fontSize: 10,
-        color: '#2d3748',
-        fontFamily: "'JetBrains Mono', monospace",
-        letterSpacing: '0.08em',
       }}>
-        GENESIS OBSERVATORY · {data.agents.length} AGENTS · {data.messages.length} MESSAGES · {data.events.length} EVENTS · SIMULATION COMPLETE
+        <div style={{
+          fontSize: 12, color: '#3a3f4e',
+          fontFamily: "'JetBrains Mono', monospace",
+          lineHeight: 1.8,
+        }}>
+          <div>Genesis Observatory -- Archive of the First Autonomous Civilization</div>
+          <div>{data.agents.length} agents / {data.messages.length} messages / {data.events.length} events</div>
+        </div>
       </footer>
+
+      {/* Global styles */}
+      <style>{`
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.35); }
+        ::selection { background: rgba(139,92,246,0.3); }
+        html { scroll-behavior: smooth; }
+
+        @media (max-width: 768px) {
+          nav { padding: 0 12px !important; }
+          nav > div { gap: 0 !important; }
+          nav button { padding: 8px 10px !important; font-size: 11px !important; }
+        }
+      `}</style>
     </div>
   )
 }
