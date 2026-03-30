@@ -12,11 +12,13 @@ import Economy from './components/Economy'
 import FamilyTree from './components/FamilyTree'
 import Nations from './components/Nations'
 import Petitions from './components/Petitions'
+import EconomicGraph from './components/EconomicGraph'
 
-type Tab = 'overview' | 'timeline' | 'town-hall' | 'dms' | 'economy' | 'family' | 'governance' | 'petitions'
+type Tab = 'overview' | 'graph' | 'timeline' | 'town-hall' | 'dms' | 'economy' | 'family' | 'governance' | 'petitions'
 
 const TABS: { id: Tab; label: string; color: string }[] = [
   { id: 'overview', label: 'Overview', color: '#8b5cf6' },
+  { id: 'graph', label: '3D Graph', color: '#888' },
   { id: 'timeline', label: 'Timeline', color: '#8b5cf6' },
   { id: 'town-hall', label: 'Town Hall', color: '#8b5cf6' },
   { id: 'dms', label: 'DMs', color: '#f59e0b' },
@@ -247,6 +249,11 @@ export default function Home() {
         )}
 
         <div ref={contentRef}>
+          {activeTab === 'graph' && (
+            <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+              <EconomicGraph data={data} />
+            </div>
+          )}
           {activeTab === 'timeline' && <CivTimeline data={data} />}
           {activeTab === 'town-hall' && <TownHallFeed data={data} />}
           {activeTab === 'dms' && <DMReader data={data} />}
